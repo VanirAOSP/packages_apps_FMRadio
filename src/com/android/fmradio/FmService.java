@@ -56,6 +56,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
+import android.os.Process;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -409,6 +410,9 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
     private synchronized void stopRender() {
         Log.d(TAG, "stopRender");
         mIsRender = false;
+        // HACK: Set volume to 0 to squelch any output between the call to
+        // stopRender and the render thread calling AudioTrack.stop
+        mAudioTrack.setVolume(0.0f);
     }
 
     private synchronized void createRenderThread() {
@@ -463,6 +467,7 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
 
         @Override
         public void run() {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
             try {
                 byte[] buffer = new byte[RECORD_BUF_SIZE];
                 while (!Thread.interrupted()) {
@@ -501,6 +506,8 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
                         mCurrentFrame = 0;
 
                         if (mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                            mAudioTrack.pause();
+                            mAudioTrack.flush();
                             mAudioTrack.stop();
                         }
 
