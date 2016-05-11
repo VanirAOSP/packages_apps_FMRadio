@@ -271,12 +271,12 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
             } else if (Intent.ACTION_HEADSET_PLUG.equals(action)) {
                 // switch antenna should not impact audio focus status
                 mValueHeadSetPlug = (intent.getIntExtra("state", -1) == HEADSET_PLUG_IN) ? 0 : 1;
-                switchAntennaAsync(mValueHeadSetPlug);
 
                 // Avoid Service is killed,and receive headset plug in
                 // broadcast again
                 if (!mIsServiceInited) {
                     Log.d(TAG, "onReceive, mIsServiceInited is false");
+                    switchAntennaAsync(mValueHeadSetPlug);
                     return;
                 }
                 /*
@@ -306,6 +306,8 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
                     bundle.putBoolean(FmListener.KEY_IS_SPEAKER_MODE, false);
                     notifyActivityStateChanged(bundle);
                 }
+
+                switchAntennaAsync(mValueHeadSetPlug);
             }
         }
     }
@@ -394,7 +396,7 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
            mAudioRecord.release();
            mAudioRecord = null;
        }
-       if (mAudioTrack != null) {
+       if (mAudioTrack != null && mAudioTrack.getState() == AudioTrack.STATE_INITIALIZED) {
            mAudioTrack.stop();
            mAudioTrack.release();
            mAudioTrack = null;
@@ -446,7 +448,8 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
     }
 
     private void startAudioTrack() {
-        if (mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_STOPPED) {
+        if (mAudioTrack.getState() == AudioTrack.STATE_INITIALIZED
+                && mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_STOPPED) {
             ArrayList<AudioPatch> patches = new ArrayList<AudioPatch>();
             mAudioManager.listAudioPatches(patches);
             mAudioTrack.play();
@@ -475,11 +478,13 @@ public class FmService extends Service implements FmRecorder.OnRecorderStateChan
                         // Speaker mode or BT a2dp mode will come here and keep reading and writing.
                         // If we want FM sound output from speaker or BT a2dp, we must record data
                         // to AudioRecrd and write data to AudioTrack.
-                        if (mAudioRecord.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED) {
+                        if (mAudioRecord.getRecordingState() == AudioRecord.RECORDSTATE_STOPPED
+                                && mAudioRecord.getState() == AudioRecord.STATE_INITIALIZED) {
                             mAudioRecord.startRecording();
                         }
 
-                        if (mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_STOPPED) {
+                        if (mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_STOPPED
+                                && mAudioTrack.getState() == AudioTrack.STATE_INITIALIZED) {
                             mAudioTrack.play();
                         }
                         int size = mAudioRecord.read(buffer, 0, RECORD_BUF_SIZE);
